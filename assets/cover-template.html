@@ -1,0 +1,55 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=900, initial-scale=1.0">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif;
+    width: 900px; height: 383px;
+    overflow: hidden;
+    background: #0a0a0a;
+    display: flex; align-items: center; justify-content: center;
+    position: relative;
+  }
+  body::before {
+    content: '';
+    position: absolute; top: -50%; left: -50%; width: 200%; height: 200%;
+    background:
+      radial-gradient(ellipse at 20% 50%, rgba(120, 80, 255, 0.18) 0%, transparent 50%),
+      radial-gradient(ellipse at 80% 20%, rgba(255, 100, 50, 0.12) 0%, transparent 50%),
+      radial-gradient(ellipse at 50% 80%, rgba(50, 200, 255, 0.10) 0%, transparent 50%);
+  }
+  .content {
+    position: relative; z-index: 2;
+    text-align: center;
+    padding: 0 30px;
+    width: 100%;
+  }
+  .label {
+    font-size: 15px; font-weight: 500;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 4px;
+    margin-bottom: 14px;
+  }
+  .title {
+    font-weight: 900; line-height: 1.15;
+    background: linear-gradient(135deg, #7850ff, #ff6432, #32c8ff);
+    -webkit-background-clip: text; -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  /* 字号大幅提升，撑满画面 */
+  .title.len-short  { font-size: 110px; } /* 1-3字 */
+  .title.len-medium { font-size: 88px; }  /* 4-6字 */
+  .title.len-long   { font-size: 62px; }  /* 7-10字 */
+  .title.len-xlong  { font-size: 48px; }  /* 11字+ */
+</style>
+</head>
+<body>
+  <div class="content">
+    <div class="label">{{COVER_LABEL}}</div>
+    <div class="title {{TITLE_SIZE_CLASS}}">{{COVER_TITLE}}</div>
+  </div>
+</body>
+</html>

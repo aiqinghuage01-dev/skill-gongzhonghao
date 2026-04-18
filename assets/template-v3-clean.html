@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>V3 Clean 升级版 — 模板</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "PingFang SC", "Hiragino Sans GB", "Microsoft YaHei", sans-serif;
+    background: #f5f5f5;
+    color: #333;
+    line-height: 1.8;
+  }
+  .wrapper { max-width: 580px; margin: 0 auto; background: #fff; min-height: 100vh; }
+
+  /* ========== Hero 横幅开场 ========== */
+  .hero {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+    padding: 56px 32px 44px;
+    text-align: center;
+  }
+  .hero-badge { display: inline-block; background: #d4380d; color: #fff; font-size: 14px; font-weight: 700; padding: 6px 20px; border-radius: 20px; letter-spacing: 4px; margin-bottom: 24px; }
+  .hero-emoji { font-size: 56px; margin-bottom: 16px; }
+  .hero-title { font-size: 26px; font-weight: 800; color: #fff; line-height: 1.4; margin-bottom: 12px; }
+  .hero-title .hero-highlight { color: #ffd166; }
+  .hero-subtitle { font-size: 15px; color: rgba(255,255,255,0.6); }
+  .article-body { padding: 24px 24px 40px; }
+
+  .content { font-size: 16px; line-height: 2; color: #333; }
+  .content p { margin-bottom: 20px; }
+  .content strong { font-weight: 700; color: #111; }
+
+  /* ========== 分隔线 ========== */
+  .divider { text-align: center; margin: 32px 0; font-size: 14px; color: #ccc; letter-spacing: 12px; }
+
+  /* ========== Section 标题（带 emoji 图标版） ========== */
+  .section-title {
+    font-size: 18px; font-weight: 700; color: #111;
+    margin: 36px 0 20px; padding: 12px 16px;
+    background: linear-gradient(135deg, #fff7e6, #fff1d6);
+    border-left: 4px solid #d4380d;
+    border-radius: 0 8px 8px 0;
+    line-height: 1.5;
+  }
+  .section-title .icon {
+    margin-right: 8px;
+  }
+
+  /* ========== 金句高亮框 ========== */
+  .golden {
+    background: linear-gradient(135deg, #fff7e6, #ffe7ba);
+    padding: 20px 24px; margin: 24px 0;
+    border-radius: 12px;
+    font-size: 17px; font-weight: 700; color: #ad6800;
+    line-height: 1.7; text-align: center;
+  }
+
+  /* ========== Callout 卡片 ========== */
+  .callout {
+    background: #f6f8fa; padding: 16px 20px;
+    margin: 20px 0; border-radius: 10px;
+    border-left: 3px solid #d4380d;
+    font-size: 15px; color: #444; line-height: 1.9;
+  }
+  .callout-blue {
+    background: #f0f5ff; padding: 16px 20px;
+    margin: 20px 0; border-radius: 10px;
+    border-left: 3px solid #1890ff;
+    font-size: 15px; color: #444; line-height: 1.9;
+  }
+  .callout-green {
+    background: #f6ffed; padding: 16px 20px;
+    margin: 20px 0; border-radius: 10px;
+    border-left: 3px solid #52c41a;
+    font-size: 15px; color: #444; line-height: 1.9;
+  }
+
+  /* ========== 强调数字 ========== */
+  .num { color: #d4380d; font-weight: 700; font-size: 18px; }
+
+  /* ========== 荧光笔高亮 ========== */
+  .highlight-line {
+    background: linear-gradient(transparent 60%, #ffe58f 60%);
+    font-weight: 700;
+  }
+
+  /* ========== 三栏数据卡片 ========== */
+  .stat-row {
+    display: flex; gap: 12px; margin: 20px 0;
+  }
+  .stat-card {
+    flex: 1; background: #fff7e6; border-radius: 10px;
+    padding: 14px 12px; text-align: center;
+  }
+  .stat-card .stat-num { font-size: 22px; font-weight: 700; color: #d4380d; }
+  .stat-card .stat-label { font-size: 12px; color: #999; margin-top: 4px; }
+
+  /* ========== 时间线 ========== */
+  .timeline { margin: 20px 0; padding-left: 20px; border-left: 3px solid #ffe7ba; }
+  .timeline-item { padding: 8px 0 16px 16px; font-size: 15px; }
+  .timeline-item .day { display: inline-block; background: #d4380d; color: #fff; font-size: 12px; font-weight: 700; padding: 2px 8px; border-radius: 4px; margin-right: 8px; }
+
+  /* ========== 对比框（新增） ========== */
+  .compare-row {
+    display: flex; gap: 12px; margin: 20px 0;
+  }
+  .compare-card {
+    flex: 1; border-radius: 10px; padding: 16px; text-align: center;
+  }
+  .compare-card.before {
+    background: #f5f5f5; border: 1px solid #e8e8e8;
+  }
+  .compare-card.after {
+    background: #fff7e6; border: 1px solid #ffe7ba;
+  }
+  .compare-card .compare-label { font-size: 12px; color: #999; margin-bottom: 6px; }
+  .compare-card .compare-text { font-size: 16px; font-weight: 700; color: #333; }
+  .compare-card.after .compare-text { color: #d4380d; }
+
+  /* ========== 引用块（新增） ========== */
+  .quote-block {
+    margin: 24px 0; padding: 20px 24px;
+    background: #fafafa;
+    border-left: 4px solid #d9d9d9;
+    border-radius: 0 10px 10px 0;
+    font-size: 16px; color: #555; line-height: 1.9;
+    font-style: italic;
+  }
+  .quote-block .quote-source {
+    margin-top: 8px; font-size: 13px; color: #999;
+    font-style: normal; text-align: right;
+  }
+
+  /* ========== 编号列表框（新增） ========== */
+  .step-list { margin: 20px 0; }
+  .step-item {
+    display: flex; gap: 14px; align-items: flex-start;
+    padding: 12px 0; border-bottom: 1px solid #f0f0f0;
+  }
+  .step-item:last-child { border-bottom: none; }
+  .step-num {
+    flex-shrink: 0; width: 28px; height: 28px;
+    background: linear-gradient(135deg, #d4380d, #fa8c16);
+    color: #fff; font-size: 14px; font-weight: 700;
+    border-radius: 50%; display: flex;
+    align-items: center; justify-content: center;
+  }
+  .step-text { font-size: 15px; color: #333; line-height: 1.8; }
+  .step-text strong { color: #111; }
+
+  /* ====================================================
+     固定结尾区域 — 每篇文章必须包含，不可修改
+     ==================================================== */
+
+  .footer-fixed { margin-top: 48px; }
+  .footer-divider {
+    text-align: center; margin: 0 0 24px;
+    font-size: 20px; color: #e8e8e8; letter-spacing: 6px;
+  }
+
+  /* 金句签名 */
+  .sign-motto-box {
+    text-align: center; margin-bottom: 24px;
+  }
+  .sign-motto {
+    font-size: 20px; font-weight: 700; color: #ad6800;
+    line-height: 1.4;
+  }
+  .sign-motto-sub {
+    font-size: 14px; color: #bfbfbf; margin-top: 4px;
+  }
+
+  /* 头像名片卡 — 白底圆角 */
+  .author-card {
+    padding: 32px 24px 28px;
+    background: #fff;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 2px 16px rgba(102, 126, 234, 0.08);
+    border: 1px solid #f0eef5;
+  }
+  .author-avatar {
+    width: 88px; height: 88px;
+    border-radius: 50%;
+    margin: 0 auto 16px;
+    display: block;
+    object-fit: cover;
+    box-shadow: 0 4px 12px rgba(118, 75, 162, 0.2);
+  }
+  .author-name {
+    font-size: 18px; font-weight: 700; color: #333;
+    margin-bottom: 8px;
+  }
+  .author-tagline {
+    font-size: 14px; color: #888; line-height: 1.6;
+  }
+  .author-slogan {
+    font-size: 13px; color: #bfbfbf; margin-top: 6px;
+  }
+
+  /* CTA 互动区 — 紫色渐变底 */
+  .cta-box {
+    margin-top: 20px; padding: 24px 24px 20px;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 16px;
+    font-size: 14px; color: rgba(255,255,255,0.9); line-height: 2;
+    text-align: center;
+  }
+  .cta-box .cta-title {
+    font-weight: 700; color: #fff; font-size: 15px;
+    margin-bottom: 6px;
+  }
+  .cta-box .cta-subtitle {
+    font-weight: 700; color: #fff; font-size: 15px;
+    margin-bottom: 4px;
+  }
+  .cta-box .cta-desc {
+    font-size: 13px; color: rgba(255,255,255,0.7);
+    margin-top: 4px;
+  }
+</style>
+</head>
+<body>
+<div class="wrapper">
+  <div class="hero">
+    <div class="hero-emoji">💡</div>
+    <div class="hero-title">这里放文章的<span class="hero-highlight">核心判断</span></div>
+    <div class="hero-subtitle">这里放一句补足场景或反常识切口的副标题</div>
+  </div>
+
+  <div class="article-body">
+    <div class="content">
+
+    <!-- ========== 正文开始 ========== -->
+
+    <p>昨天中午，工作室里就我一个人，泡了杯茶坐在茶台前，随口跟AI说了一句："把poju.ai部署上线，30天日记的内容打通进去。"</p>
+
+    <p>然后我就去研究别的东西了。</p>
+
+    <p>三个小时后，飞书弹了一条消息：<strong>"poju.ai 已上线，SSL证书签发完毕，国内外均可正常访问。"</strong></p>
+
+    <p>我盯着那条消息看了十几秒，第一反应是：</p>
+
+    <div class="stat-row">
+      <div class="stat-card">
+        <div class="stat-num">1-3W</div>
+        <div class="stat-label">外包报价</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">2-4周</div>
+        <div class="stat-label">外包工期</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-num">7分钟</div>
+        <div class="stat-label">我实际花的时间</div>
+      </div>
+    </div>
+
+    <p>5分钟说需求 + 2分钟确认上线。比下楼取个快递还快。</p>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section-title"><span class="icon">💎</span>这件事最值钱的地方</div>
+
+    <p>10年前这件事我确实自己能干，科技圈待了10年，代码、部署、服务器这些我都摸过。</p>
+
+    <p>但今天最值钱的地方在于：<strong>这件事从头到尾不是我干的。</strong></p>
+
+    <div class="callout">方案是AI自己选的，代码是AI自己写的，部署是AI自己配的，证书是AI自己签的，测试完了还主动在飞书里给我发了一份上线报告。</div>
+
+    <p>跟我让助理去帮我办个事是一模一样的逻辑——我不需要懂怎么操作，我只需要说清楚我要什么结果。</p>
+
+    <p>这就是个人能力和团队能力的区别。你自己能干，跟你有一个团队帮你干，完全是两回事。<strong>前者有天花板，后者能规模化。</strong></p>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section-title"><span class="icon">⚡</span>两个团队，我选择解散自己管的那个</div>
+
+    <p>说一个很多人不知道的事。</p>
+
+    <p>我这个项目有两个团队，一个在北京，一个在武汉。武汉那边我不需要操任何心，是我合伙人鲁总他全权负责。北京这个团队，是我自己亲自管的。</p>
+
+    <p>去年上半年，我把北京这个团队解散了，而<span class="highlight-line">这个决策是我过去一年做过的最正确的决策</span>。</p>
+
+    <!-- 对比框示例 -->
+    <div class="compare-row">
+      <div class="compare-card before">
+        <div class="compare-label">解散前</div>
+        <div class="compare-text">管团队 + 做内容<br>两头消耗</div>
+      </div>
+      <div class="compare-card after">
+        <div class="compare-label">解散后</div>
+        <div class="compare-text">专注 AI 研究<br>产出翻倍</div>
+      </div>
+    </div>
+
+    <p>腾出手之后，我租了一个民宅做工作室，一个人，一堆电脑，一个茶台，一台按摩椅，每天至少4、5个小时就在里面研究AI、测工具、踩坑。</p>
+
+    <div class="callout-blue">挺讽刺的，对吧？解散了一个人类团队，结果养出来一个AI团队。而且这个AI团队不请假、不离职、不跟你讨价还价、凌晨2点还在帮你干活。</div>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section-title"><span class="icon">🎯</span>95%的人用AI，用法就错了</div>
+
+    <p>这一年多下来，我见过太多老板用AI的方式：打开对话框，输一句话，复制答案，关掉。明天再来，AI什么都不记得。</p>
+
+    <div class="golden">把AI当临时工，你永远只能得到临时工水平的结果。<br>把AI当团队养，它就能像团队一样替你扛事。</div>
+
+    <div class="section-title"><span class="icon">🔧</span>这个AI团队是怎么养起来的</div>
+
+    <p>这个AI团队之所以能三小时上线一个网站，是因为过去11天我做了这些事：</p>
+
+    <div class="timeline">
+      <div class="timeline-item"><span class="day">Day 1-2</span>让AI入职，磨合沟通方式</div>
+      <div class="timeline-item"><span class="day">Day 3-4</span>定规矩——什么叫"干完了"，什么叫"及格"</div>
+      <div class="timeline-item"><span class="day">Day 5</span>花两个小时口述采集，让它彻底理解我的生意</div>
+      <div class="timeline-item"><span class="day">Day 6-7</span>串联链路，让它像流水线一样干活</div>
+      <div class="timeline-item"><span class="day">Day 8-9</span>教它拿捏分寸，自己修bug</div>
+      <div class="timeline-item"><span class="day">Day 10-11</span>全自动内容生产上线</div>
+    </div>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section-title"><span class="icon">🔑</span>给想搞AI团队的老板说三句话</div>
+
+    <!-- 编号列表框示例 -->
+    <div class="step-list">
+      <div class="step-item">
+        <div class="step-num">1</div>
+        <div class="step-text"><strong>别急着让AI干活，先让它了解你。</strong>花一两个小时，把你的生意像聊天一样讲给AI听。</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">2</div>
+        <div class="step-text"><strong>给AI立规矩，标准越清楚它越好使。</strong>什么叫干完了，什么结果算合格。</div>
+      </div>
+      <div class="step-item">
+        <div class="step-num">3</div>
+        <div class="step-text"><strong>别把AI的能力局限在"写文案"。</strong>它能干多大的事，取决于你愿意投入多少时间去养它。</div>
+      </div>
+    </div>
+
+    <div class="divider">· · ·</div>
+
+    <div class="section-title"><span class="icon">✍️</span>写在最后</div>
+
+    <p>很多老板跟我一样——不是不想有团队，是管团队太消耗了。AI不是来替代你团队的，它是来帮你从零搭建一个不需要管的团队的。</p>
+
+    <p>而且成本约等于零。</p>
+
+    <!-- ========== 签名区（两个版本二选一，由 SKILL.md Phase 3.5 决定） ========== -->
+    <!-- 阶段 1 - 纯文字签名区（首次使用 / ~/.wechat-article-config/author-card.json 不存在） -->
+    <!-- 提取规则：从 ~/Desktop/我的内容库（勿动）/01-黄金五环/ 取 author_name / author_tagline / ending_motto -->
+
+    <div class="footer-fixed">
+      <div class="footer-divider">— — —</div>
+
+      <div class="sign-motto-box">
+        <div class="sign-motto">"{{ending_motto}}"</div>
+      </div>
+
+      <div class="author-card-text" style="text-align:center; padding:20px 0;">
+        <div class="author-name" style="font-size:20px; font-weight:700; color:#222; margin-bottom:8px;">{{author_name}}</div>
+        <div class="author-tagline" style="font-size:14px; color:#666;">{{author_tagline}}</div>
+      </div>
+    </div>
+
+    <!-- 阶段 2 - 完整签名卡（author-card.json 存在时用此版本，替换上面的阶段 1） -->
+    <!-- 下面的结构保留供阶段 2 切换使用，实际渲染时阶段 1 和阶段 2 只用一个 -->
+    <!--
+    <div class="footer-fixed">
+      <div class="footer-divider">— — —</div>
+
+      <div class="sign-motto-box">
+        <div class="sign-motto">"{{ending_motto}}"</div>
+        <div class="sign-motto-sub">{{ending_motto_sub}}</div>
+      </div>
+
+      <div class="author-card">
+        <a href="https://mp.weixin.qq.com/mp/profile_ext?action=home&__biz={{mp_biz_id}}#wechat_redirect"><img class="author-avatar" src="{{author_avatar_url}}" alt="{{author_name}}"></a>
+        <div class="author-name">{{author_name}}</div>
+        <div class="author-tagline">{{author_tagline}}</div>
+        <div class="author-slogan">{{author_slogan_1}}</div>
+        <div class="author-slogan">{{author_slogan_2}}</div>
+      </div>
+
+      <div class="cta-box">
+        <div class="cta-title">{{cta_title}}</div>
+        <div class="cta-subtitle">{{cta_subtitle}}</div>
+      </div>
+    </div>
+    -->
+
+    <!-- ⚠️ 渲染规则：
+         1. 检测 ~/.wechat-article-config/author-card.json
+         2. 存在 → 删除阶段 1 block，启用阶段 2 block（把 HTML 注释的 <!-- --> 去掉）
+         3. 不存在 → 保留阶段 1 block（纯文字），不渲染阶段 2
+         4. 填入 {{变量}} 前必须做字符串替换，空字段跳过整行
+         5. 最终推送前必须用 scripts/convert_to_wechat_markup.py 转换，
+            它会自动删除所有 HTML 注释（否则微信会显示成可见文字） -->
+
+
+    </div>
+  </div>
+</div>
+</body>
+</html>

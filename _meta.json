@@ -1,0 +1,13 @@
+{
+  "name": "公众号文章-学员版",
+  "version": "1.0.0",
+  "description": "从本地内容库读取老板画像和素材，帮老板写 1800-2000 字公众号文章并生成 HTML 排版。首次零配置，阶段式渐进升级",
+  "author": "aiqinghuage01-dev",
+  "platforms": ["workbuddy", "qclaw", "openclaw", "codex", "claude-code"],
+  "requirements": {
+    "python": ">=3.8",
+    "depends_on_skills": ["内容库搭建-学员版", "黄金五环采集-学员版"],
+    "optional_skills": ["人设文案-学员版", "人设故事（员工视角）-学员版"]
+  },
+  "entry": "SKILL.md"
+}
