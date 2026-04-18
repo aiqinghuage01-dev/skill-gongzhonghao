@@ -366,27 +366,52 @@ python3 scripts/convert_to_wechat_markup.py \
 - 图片加 `max-width:100%`
 - CSS 内联
 
-### Step 3: 自动打开浏览器预览
+### Step 3: 把 wechat_article.html 塞进系统剪贴板（核心步骤）
+
+**⚠️ 硬规则**：**不要让老板去浏览器复制**——浏览器 Ctrl+C 会把 `<section>` 转成
+`<div>`、丢弃 `<mp-style-type>`，粘到公众号后台排版会塌。
+
+正确做法：跳过浏览器，直接用系统 API 以 `text/html` MIME 类型塞剪贴板。
 
 ```bash
-# 跨平台（脚本自动判断）
+python3 scripts/copy_html_to_clipboard.py "$PREVIEW_DIR/wechat_article.html"
+```
+
+脚本做的事：
+- **macOS**：`osascript` 以 `«class HTML»` 类型写入剪贴板
+- **Windows**：PowerShell `System.Windows.Forms.Clipboard.SetText(.., 'Html')`（需 `-STA` 线程）
+- **Linux**：`xclip -selection clipboard -t text/html`（需学员装 xclip）
+
+**⚠️ 关键**：输入文件必须是 `wechat_article.html`（convert 后的版本），不是 `wechat_article_raw.html`。raw 是给浏览器看的，微信专用版才能粘贴不塌。
+
+### Step 4: 预览（可选，用于老板本地查看排版）
+
+**这一步不影响发布**，只是让老板看着放心。
+
+```bash
 python3 scripts/open_preview.py "$PREVIEW_DIR/wechat_article_raw.html"
 ```
 
-内部逻辑：macOS 用 `open`，Windows 用 `start`，Linux 用 `xdg-open`。
+**注意**：预览打开的是 raw 版（浏览器能正常渲染），不是剪贴板里那版（微信专用格式浏览器显示会乱）。
 
-### Step 4: 告诉老板怎么发
+### Step 5: 告诉老板怎么发
 
 ```
-✅ 文章已生成，浏览器已打开预览
+✅ 文章已生成 + HTML 已自动塞进剪贴板（text/html 富文本格式）
 
-📋 下一步（复制粘贴 3 步发布）：
-1. 浏览器里 Ctrl+A 全选 → Ctrl+C 复制
-2. 打开 mp.weixin.qq.com → 新建图文消息
-3. 粘贴到编辑区，标题填《{刚才选的标题}》，摘要填：{自动生成的摘要}
-4. （可选）上传封面图 → 点"保存为草稿"或"发布"
+📋 下一步（一粘即发）：
+1. 打开 mp.weixin.qq.com → 新建图文消息
+2. 在编辑区直接 Ctrl+V（Mac: Cmd+V）← 排版会完整粘进去
+3. 标题填《{刚才选的标题}》
+4. 摘要填：{自动生成的摘要}
+5. （可选）上传封面图 → 点"保存为草稿"或"发布"
 
-✨ 如果以后想省掉复制粘贴这一步，跟我说"配置自动推送"。
+⚠️ 注意：
+- 不要点"粘贴为纯文本"，选默认粘贴就行
+- 如果剪贴板被其他东西覆盖了，重跑：
+  python3 scripts/copy_html_to_clipboard.py "$PREVIEW_DIR/wechat_article.html"
+
+✨ 如果你是企业主体公众号，以后想省掉这步直接推草稿箱，跟我说"配置自动推送"。
 ```
 
 ---
