@@ -49,21 +49,67 @@ COPY_BUTTON_SNIPPET = """
     setTimeout(function() { toast.style.display = 'none'; }, 3500);
   }
 
+  // 兜底姿势：用 contenteditable + execCommand('copy') 写富文本剪贴板
+  // 这是墨滴 / Markdown Nice 长期使用的姿势，兼容 IE10+ / Edge / Chrome / Firefox
+  // 关键：浏览器从渲染好的 DOM 选区复制时，会自动把样式写成 text/html MIME
+  function copyViaExecCommand(html) {
+    const div = document.createElement('div');
+    div.contentEditable = 'true';
+    div.innerHTML = html;
+    // 关键：必须可见可选中，但移到屏幕外。display:none 会让选区失效
+    div.style.position = 'fixed';
+    div.style.left = '-9999px';
+    div.style.top = '0';
+    div.style.opacity = '0';
+    document.body.appendChild(div);
+
+    const range = document.createRange();
+    range.selectNodeContents(div);
+    const selection = window.getSelection();
+    selection.removeAllRanges();
+    selection.addRange(range);
+
+    let ok = false;
+    try {
+      ok = document.execCommand('copy');
+    } catch (e) {
+      ok = false;
+    }
+    selection.removeAllRanges();
+    document.body.removeChild(div);
+    return ok;
+  }
+
   document.getElementById('__copy_btn').addEventListener('click', async function() {
     const html = b64ToUtf8(__WECHAT_HTML_B64);
+
+    // 优先姿势 1：ClipboardItem API（现代浏览器，安全上下文 + user gesture）
     try {
       const blob = new Blob([html], { type: 'text/html' });
       const item = new ClipboardItem({ 'text/html': blob });
       await navigator.clipboard.write([item]);
       showToast('✅ 已复制！去公众号后台 Cmd+V 粘贴', true);
+      return;
     } catch (e) {
-      // 兜底：写纯文本（部分老浏览器或 file:// 受限场景）
-      try {
-        await navigator.clipboard.writeText(html);
-        showToast('⚠️ 仅复制了 HTML 源码（浏览器限制）。建议用脚本兜底：copy_html_to_clipboard.py', false);
-      } catch (e2) {
-        showToast('❌ 复制失败：' + e2.message + '。请重跑 copy_html_to_clipboard.py 兜底', false);
+      // 落到姿势 2
+    }
+
+    // 兜底姿势 2：execCommand('copy') + contenteditable（富文本，Win file:// 通吃）
+    try {
+      if (copyViaExecCommand(html)) {
+        showToast('✅ 已复制（兼容模式）！去公众号后台 Cmd+V 粘贴', true);
+        return;
       }
+    } catch (e) {
+      // 落到姿势 3
+    }
+
+    // 最终兜底姿势 3：writeText 纯源码（基本不会到这一步）
+    try {
+      await navigator.clipboard.writeText(html);
+      showToast('⚠️ 仅复制了 HTML 源码（浏览器限制富文本写入）。建议改用 Chrome 或 Edge 重试', false);
+    } catch (e3) {
+      showToast('❌ 复制失败：' + e3.message, false);
     }
   });
 })();
