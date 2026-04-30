@@ -26,10 +26,46 @@ import subprocess
 import tempfile
 
 
+def _ensure_dependencies():
+    """零依赖假设：学员可能没装 bs4。检测 + 自动 pip install。
+
+    必须在 main() 执行前跑——run_pipeline 自己不直接 import bs4，
+    但它通过 subprocess 调 convert_to_wechat_markup.py，那个脚本依赖 bs4。
+    在这里检测保证：即使 LLM 没跑过 setup.py，单独跑 run_pipeline.py 也能自愈。
+    """
+    try:
+        import bs4  # noqa: F401
+        return
+    except ImportError:
+        pass
+
+    print("[setup] 检测到缺少 beautifulsoup4，自动安装中...", file=sys.stderr)
+    r = subprocess.run(
+        [sys.executable, "-m", "pip", "install", "--quiet", "--disable-pip-version-check", "beautifulsoup4"],
+        capture_output=True, text=True, encoding="utf-8", errors="replace",
+    )
+    if r.returncode != 0:
+        print("❌ beautifulsoup4 安装失败", file=sys.stderr)
+        if r.stderr:
+            print(f"   {r.stderr.strip()[:300]}", file=sys.stderr)
+        print(f"   手动修复：{sys.executable} -m pip install beautifulsoup4", file=sys.stderr)
+        sys.exit(1)
+
+    # 二次验证
+    try:
+        import bs4  # noqa: F401
+    except ImportError:
+        print("❌ beautifulsoup4 安装后仍无法 import", file=sys.stderr)
+        sys.exit(1)
+
+
 def main():
     if len(sys.argv) < 2:
         print("用法: python3 run_pipeline.py <wechat_article_raw.html>", file=sys.stderr)
         sys.exit(1)
+
+    # 零依赖兜底：缺 bs4 自动装（学员第一次跑时大概率会触发）
+    _ensure_dependencies()
 
     raw_path = os.path.abspath(sys.argv[1])
     if not os.path.exists(raw_path):

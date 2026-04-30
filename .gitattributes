@@ -1,0 +1,21 @@
+# 强制所有文本文件用 LF 换行（避免 Windows 学员 git clone 后变 CRLF
+# 导致 Python 脚本头 #!/usr/bin/env python3 解析异常 / shell 脚本挂等问题）
+* text=auto eol=lf
+
+# 显式声明常见文本类型
+*.py        text eol=lf
+*.html      text eol=lf
+*.md        text eol=lf
+*.json      text eol=lf
+*.sh        text eol=lf
+*.css       text eol=lf
+*.js        text eol=lf
+*.txt       text eol=lf
+
+# 二进制不动
+*.png       binary
+*.jpg       binary
+*.jpeg      binary
+*.gif       binary
+*.ico       binary
+*.zip       binary
