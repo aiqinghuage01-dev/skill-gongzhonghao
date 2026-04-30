@@ -333,47 +333,70 @@ cat ~/.wechat-article-config/author-card.json
 
 ## Phase 4: 预览 + 发布引导（默认路径）
 
-> **学员是实体老板，不会 python**。本 Phase 所有命令都是 LLM（你）替学员跑的，**学员永远只看浏览器预览页**。**严禁** 把任何 python/shell 命令丢给学员手敲——挂了你自己想办法解决。
+> **学员是实体老板，不会 python**。本 Phase 所有命令都是 LLM（你）替学员跑的。**学员永远只看浏览器预览页**——不看终端、不看路径、不看 traceback。
 
-### Step 1: 写 raw HTML 到跨平台临时目录（LLM 内部步骤）
+### Step 1: 一段 Python 跑完所有发布步骤（LLM 唯一调用点）
 
-**⚠️ 硬规则：禁止用 shell 变量 `${TMPDIR:-/tmp}`** — 这是 bash 语法，Windows PowerShell/cmd 完全不认，路径会错位、后续步骤全挂。**统一走 Python**：
+**⚠️ 硬规则**：
+
+1. **不要用 `python3` / `python` 命令名**调脚本（Windows 默认只有 `python`，没 `python3`；Linux 反过来）。**统一用 Python `subprocess` + `sys.executable`**——它自动找到当前 Python 解释器，跨平台 100% OK。
+2. **不要用 shell 变量 `${TMPDIR:-/tmp}`** 算路径（Windows PowerShell/cmd 不认）。**统一用 `tempfile.gettempdir()`**。
+
+把下面这一段 Python **整段执行**（你应该有跑 Python 代码的能力——和 Phase 0 / Phase 3 写文件一样）：
 
 ```python
-# 你（LLM）通过 Python 算路径 + 写 raw HTML，跨平台 100% OK
-import tempfile, os
+import sys, os, subprocess, tempfile
+
+# 1. 环境前置检查（缺 bs4 自动装）
+try:
+    import bs4  # noqa: F401
+except ImportError:
+    subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "beautifulsoup4"], check=True)
+
+# 2. 算跨平台临时目录 + 写 raw HTML
 preview_dir = os.path.join(tempfile.gettempdir(), "preview")
 os.makedirs(preview_dir, exist_ok=True)
 raw_path = os.path.join(preview_dir, "wechat_article_raw.html")
 with open(raw_path, "w", encoding="utf-8") as f:
     f.write(RAW_HTML)  # 你刚生成的 V3 Clean HTML 字符串
-print(raw_path)  # 拿到这个路径，传给下一步
+
+# 3. 调 run_pipeline.py（用 sys.executable 自动用对的 Python，无需纠结 python/python3）
+script = os.path.join(os.getcwd(), "scripts", "run_pipeline.py")
+if not os.path.exists(script):
+    raise RuntimeError(f"找不到 run_pipeline.py（当前目录: {os.getcwd()}）。检查 skill 安装路径。")
+
+result = subprocess.run(
+    [sys.executable, script, raw_path],
+    capture_output=True, text=True, encoding="utf-8", errors="replace",
+)
+print(result.stdout)
+if result.returncode != 0:
+    # 你（LLM）看到 stderr → 自己 debug，不要丢给学员
+    print("⚠️ run_pipeline 报错（LLM 处理，不要让学员看）:", result.stderr, file=sys.stderr)
+    raise RuntimeError("run_pipeline 失败，需要 LLM 介入 debug")
 ```
 
-### Step 2: 一行命令跑完所有发布步骤（LLM 唯一调用点）
+`run_pipeline.py` 内部按顺序跑三步，**Windows / macOS / Linux 全兼容**：
 
-**默认路径：你只调一个 `run_pipeline.py` 就完事**：
-
-```bash
-python3 scripts/run_pipeline.py "<上一步打印的 raw_path>"
-```
-
-`run_pipeline.py` 内部按顺序跑三步，所有路径用 `tempfile.gettempdir()` 算，**Windows / macOS / Linux 全兼容**：
-
-1. **转微信标记**：raw HTML → `wechat_article.html`（含 `<section>` / `<span leaf="">` / `<mp-style-type>`，公众号后台专用格式）
-2. **塞剪贴板**：把微信版以 `text/html` MIME 写进系统剪贴板（macOS osascript / Windows PowerShell Clipboard.SetText 'Html' / Linux xclip）
+1. **转微信标记**：raw HTML → `wechat_article.html`（含 `<section>` / `<span leaf="">` / `<mp-style-type>`）
+2. **塞剪贴板**（兜底）：把微信版以 `text/html` MIME 写进系统剪贴板（macOS osascript / Windows PowerShell .NET / Linux xclip）。**Windows 端用 `[System.IO.File]::ReadAllText` + UTF-8 显式编码读取**，规避中文乱码
 3. **弹增强预览页**：浏览器自动打开 `wechat_article_preview.html`，**右上角浮动「📋 一键复制到公众号」红橙按钮**
 
-### Step 3: 学员看到的最终结果
+### Step 2: 学员看到的最终结果
 
-学员的浏览器自动弹一个文章预览页，**右上角一定有红橙色按钮**。学员的两条路：
+学员的浏览器自动弹一个文章预览页，**右上角一定有红橙色按钮**。两条粘贴姿势：
 
 - **路 A（推荐）**：直接切公众号后台 → Ctrl+V（Mac: Cmd+V）→ 一粘到位
-- **路 B（剪贴板被覆盖时兜底）**：在预览页点右上角按钮 → 看到 toast「✅ 已复制」→ 切公众号后台 Ctrl+V
+- **路 B（剪贴板被覆盖时兜底）**：在预览页点右上角按钮 → 看到 toast「✅ 已复制」或「✅ 已复制（兼容模式）」→ 切公众号后台 Ctrl+V
+
+按钮 JS 三段式回退（应付任何浏览器/协议组合）：
+1. `ClipboardItem` API（现代 Chrome / Edge / Safari，安全上下文 + user gesture）
+2. `execCommand('copy')` + 隐藏 `contenteditable`（Windows file:// 协议下被拒绝 ClipboardItem 时兜底，墨滴 / Markdown Nice 长期姿势）
+3. `writeText` 纯源码（最后兜底，几乎不会到）
 
 学员**全程只看浏览器**，不需要看终端、不需要敲任何命令。
 
-### Step 4: 告诉学员怎么发（LLM 输出给学员看的话术）
+### Step 3: 告诉学员怎么发（LLM 输出给学员看的话术）
 
 ```
 ✅ 文章写好了！浏览器应该已经弹出来一个预览页。
@@ -391,16 +414,36 @@ python3 scripts/run_pipeline.py "<上一步打印的 raw_path>"
 - 万一粘贴上去是空的或者排版乱了，回到浏览器预览页右上角点【📋 一键复制到公众号】按钮，再去公众号后台 Ctrl+V 一次
 ```
 
-**严禁告诉学员任何 python 命令、文件路径、终端操作**——他们是实体老板，看到 `python3 scripts/xxx.py` 这种文字会直接劝退。
+**⚠️ 学员可见话术绝对禁止内容（铁律）**：
+- 任何文件路径（`C:\Users\...` / `/var/folders/...` / `~/.cache/...`）
+- 任何命令（`python ...` / `pip install ...`）
+- 任何 traceback 或错误堆栈
+- 任何"在终端里跑这个"的指引
 
 ### 故障兜底（如果 run_pipeline.py 跑挂了）
 
-如果你（LLM）跑 `run_pipeline.py` 失败了，**自己 debug，不要丢锅给学员**：
+**你（LLM）自己 debug，不要丢锅给学员**。所有调用都用 Python `subprocess` + `sys.executable` 模式，绝不直接 shell 调 `python` / `python3`：
 
-1. 先 `python3 scripts/convert_to_wechat_markup.py` 单独跑，看是否生成 `wechat_article.html`
-2. 再 `python3 scripts/copy_html_to_clipboard.py wechat_article.html` 单独跑
-3. 最后 `python3 scripts/open_preview.py wechat_article_raw.html` 单独跑
-4. 实在不行，把生成的 `wechat_article_preview.html` **绝对路径**直接告诉学员"双击这个文件打开"——但**不要让学员敲命令**
+```python
+import sys, subprocess, os
+
+# 单独跑某一步定位问题
+SCRIPTS = os.path.join(os.getcwd(), "scripts")
+
+# 单独转换
+subprocess.run([sys.executable, os.path.join(SCRIPTS, "convert_to_wechat_markup.py"),
+                "--input", raw_path, "--output", wechat_path, "--meta", meta_path], check=True)
+
+# 单独塞剪贴板
+subprocess.run([sys.executable, os.path.join(SCRIPTS, "copy_html_to_clipboard.py"),
+                wechat_path], check=True)
+
+# 单独弹预览
+subprocess.run([sys.executable, os.path.join(SCRIPTS, "open_preview.py"),
+                raw_path], check=True)
+```
+
+**最后兜底**：如果以上全挂了，把生成的 `wechat_article_preview.html` **绝对路径用 `file://` 协议**告诉学员"双击这个文件打开"——但**不要让学员敲任何命令**。
 
 ---
 
@@ -412,13 +455,19 @@ python3 scripts/run_pipeline.py "<上一步打印的 raw_path>"
 
 1. 从标题提取 2-6 字核心短语
 2. 挑一个 2-4 字标签（"老板必看" / "AI实战" / "实体获客" / 行业词）
-3. 生成：
+3. 生成（用 Python subprocess + sys.executable 模式，跨平台）：
 
-```bash
-python3 scripts/generate_cover.py \
-  --title "{主标题}" \
-  --label "{标签}" \
-  --output "$PREVIEW_DIR/cover.jpg"
+```python
+import sys, os, subprocess, tempfile
+
+preview_dir = os.path.join(tempfile.gettempdir(), "preview")
+cover_path = os.path.join(preview_dir, "cover.jpg")
+script = os.path.join(os.getcwd(), "scripts", "generate_cover.py")
+
+subprocess.run([sys.executable, script,
+                "--title", "{主标题}",
+                "--label", "{标签}",
+                "--output", cover_path], check=True)
 ```
 
 4. 规格 900×383（微信 2.35:1）
@@ -453,12 +502,14 @@ python3 scripts/generate_cover.py \
 
 **Step 1: 跑配置迁移脚本**（必须，否则可能 mkdir 失败）
 
-```bash
+```python
 # 检测 ~/.wechat-article-config 是文件还是目录
 # - 是目录或不存在 → 啥都不做
 # - 是文件（旧版 skill 留下的） → 备份到 ~/.wechat-article-config-legacy.json
 #   并升级为目录形式，自动迁移合法的 wechat API JSON
-python3 scripts/migrate_legacy_config.py
+import sys, os, subprocess
+script = os.path.join(os.getcwd(), "scripts", "migrate_legacy_config.py")
+subprocess.run([sys.executable, script], check=True)
 ```
 
 **Step 2: 写入 author-card.json**
@@ -498,3 +549,6 @@ EOF
 9. **严禁** 调用任何公众号推送 API（本 skill 已下线自动推送，统一走 HTML 预览 + 一键复制 + 学员手动 Ctrl+V）
 10. **严禁** 选项用 ABC（用数字 1 / 2 / 3）
 11. **严禁** 把任何 `python3 / pip / shell` 命令、文件绝对路径、终端操作丢给学员手敲——学员是实体老板，看到命令文字会直接劝退。所有命令都是 LLM（你）替学员跑的，学员全程**只看浏览器预览页**。命令跑挂了你（LLM）自己 debug，**绝对不要让学员碰终端**
+12. **严禁** 直接用 shell 调用 `python3 scripts/xxx.py` 或 `python scripts/xxx.py`——Windows 学员系统默认只有 `python` 命令、没有 `python3`；Linux/macOS 反过来。**统一用 Python `subprocess.run([sys.executable, script, ...])` 模式**，sys.executable 自动找对的 Python 解释器
+13. **严禁** 把 traceback / 错误堆栈 / 文件路径泄漏到学员可见的话术里。出错时 LLM 自己消化，告诉学员的话术只能是"重新跑一次"或"系统繁忙稍后再试"这种业务语言
+14. **严禁** 假设学员装了 bs4 / requests 等任何第三方包——首次跑前必须 `try: import bs4 except ImportError: subprocess.run([sys.executable, "-m", "pip", "install", "--quiet", "beautifulsoup4"])` 自动装齐

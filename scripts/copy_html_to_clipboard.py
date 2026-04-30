@@ -30,6 +30,7 @@
 """
 
 import argparse
+import base64
 import platform
 import subprocess
 import sys
@@ -43,17 +44,31 @@ def copy_macos(html_path: Path) -> None:
 
 
 def copy_windows(html_path: Path) -> None:
-    """Windows: PowerShell 用 System.Windows.Forms.Clipboard 设置 Html 类型。"""
-    # 注意路径里的反斜杠和引号要转义
-    win_path = str(html_path).replace("\\", "\\\\").replace('"', '\\"')
+    """Windows: PowerShell 用 System.Windows.Forms.Clipboard 设置 Html 类型。
+
+    关键修复点（v1.5）：
+      1. 用 [System.IO.File]::ReadAllText + UTF-8 显式编码读取文件
+         避免 PowerShell 5.1 默认 ANSI(cp936) 读 utf-8 文件乱码
+      2. 路径用 base64 传递，规避反斜杠/引号/中文/$/单引号 等转义噩梦
+      3. -ExecutionPolicy Bypass 兜底执行策略限制（公司电脑常见）
+      4. 失败时把 stderr 解码后返回，方便上层定位问题
+    """
+    # base64 传路径 → 完全规避 PowerShell 字符串转义问题
+    path_str = str(html_path)
+    path_b64 = base64.b64encode(path_str.encode("utf-8")).decode("ascii")
+
     ps_script = (
         "Add-Type -AssemblyName System.Windows.Forms; "
-        f"$html = Get-Content -Raw -Path \"{win_path}\"; "
+        f"$pathBytes = [System.Convert]::FromBase64String('{path_b64}'); "
+        "$path = [System.Text.Encoding]::UTF8.GetString($pathBytes); "
+        "$html = [System.IO.File]::ReadAllText($path, [System.Text.Encoding]::UTF8); "
         "[System.Windows.Forms.Clipboard]::SetText($html, 'Html')"
     )
     # -STA 必需：System.Windows.Forms.Clipboard 要求 STA 线程模型
+    # -ExecutionPolicy Bypass：兜底受限策略（公司电脑可能 Restricted）
     subprocess.run(
-        ["powershell", "-NoProfile", "-STA", "-Command", ps_script],
+        ["powershell", "-NoProfile", "-NonInteractive", "-ExecutionPolicy", "Bypass",
+         "-STA", "-Command", ps_script],
         check=True,
         capture_output=True,
     )
