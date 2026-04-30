@@ -333,100 +333,74 @@ cat ~/.wechat-article-config/author-card.json
 
 ## Phase 4: 预览 + 发布引导（默认路径）
 
-### Step 1: 跨平台临时目录
+> **学员是实体老板，不会 python**。本 Phase 所有命令都是 LLM（你）替学员跑的，**学员永远只看浏览器预览页**。**严禁** 把任何 python/shell 命令丢给学员手敲——挂了你自己想办法解决。
 
-**硬规则：不要写死 `/tmp/`**（Windows 没有 `/tmp`）。用：
+### Step 1: 写 raw HTML 到跨平台临时目录（LLM 内部步骤）
 
-```bash
-# shell
-PREVIEW_DIR="${TMPDIR:-/tmp}/preview"
-mkdir -p "$PREVIEW_DIR"
-```
+**⚠️ 硬规则：禁止用 shell 变量 `${TMPDIR:-/tmp}`** — 这是 bash 语法，Windows PowerShell/cmd 完全不认，路径会错位、后续步骤全挂。**统一走 Python**：
 
 ```python
-# python
+# 你（LLM）通过 Python 算路径 + 写 raw HTML，跨平台 100% OK
 import tempfile, os
 preview_dir = os.path.join(tempfile.gettempdir(), "preview")
 os.makedirs(preview_dir, exist_ok=True)
+raw_path = os.path.join(preview_dir, "wechat_article_raw.html")
+with open(raw_path, "w", encoding="utf-8") as f:
+    f.write(RAW_HTML)  # 你刚生成的 V3 Clean HTML 字符串
+print(raw_path)  # 拿到这个路径，传给下一步
 ```
 
-### Step 2: 转换为微信兼容标记
+### Step 2: 一行命令跑完所有发布步骤（LLM 唯一调用点）
+
+**默认路径：你只调一个 `run_pipeline.py` 就完事**：
 
 ```bash
-python3 scripts/convert_to_wechat_markup.py \
-  --input "$PREVIEW_DIR/wechat_article_raw.html" \
-  --output "$PREVIEW_DIR/wechat_article.html" \
-  --meta "$PREVIEW_DIR/article_meta.json"
+python3 scripts/run_pipeline.py "<上一步打印的 raw_path>"
 ```
 
-脚本自动完成：
-- 移除 HTML 注释（不然变成可见文字）
-- `<div>` → `<section>`，`<h1/2/3>` → `<p>`
-- 所有文本包裹 `<span leaf="">`
-- flex 容器内小图标转 `<span>`
-- 图片加 `max-width:100%`
-- CSS 内联
+`run_pipeline.py` 内部按顺序跑三步，所有路径用 `tempfile.gettempdir()` 算，**Windows / macOS / Linux 全兼容**：
 
-### Step 3: 把 wechat_article.html 塞进系统剪贴板（核心步骤）
+1. **转微信标记**：raw HTML → `wechat_article.html`（含 `<section>` / `<span leaf="">` / `<mp-style-type>`，公众号后台专用格式）
+2. **塞剪贴板**：把微信版以 `text/html` MIME 写进系统剪贴板（macOS osascript / Windows PowerShell Clipboard.SetText 'Html' / Linux xclip）
+3. **弹增强预览页**：浏览器自动打开 `wechat_article_preview.html`，**右上角浮动「📋 一键复制到公众号」红橙按钮**
 
-**⚠️ 硬规则**：**不要让老板去浏览器复制**——浏览器 Ctrl+C 会把 `<section>` 转成
-`<div>`、丢弃 `<mp-style-type>`，粘到公众号后台排版会塌。
+### Step 3: 学员看到的最终结果
 
-正确做法：跳过浏览器，直接用系统 API 以 `text/html` MIME 类型塞剪贴板。
+学员的浏览器自动弹一个文章预览页，**右上角一定有红橙色按钮**。学员的两条路：
 
-```bash
-python3 scripts/copy_html_to_clipboard.py "$PREVIEW_DIR/wechat_article.html"
-```
+- **路 A（推荐）**：直接切公众号后台 → Ctrl+V（Mac: Cmd+V）→ 一粘到位
+- **路 B（剪贴板被覆盖时兜底）**：在预览页点右上角按钮 → 看到 toast「✅ 已复制」→ 切公众号后台 Ctrl+V
 
-脚本做的事：
-- **macOS**：`osascript` 以 `«class HTML»` 类型写入剪贴板
-- **Windows**：PowerShell `System.Windows.Forms.Clipboard.SetText(.., 'Html')`（需 `-STA` 线程）
-- **Linux**：`xclip -selection clipboard -t text/html`（需学员装 xclip）
+学员**全程只看浏览器**，不需要看终端、不需要敲任何命令。
 
-**⚠️ 关键**：输入文件必须是 `wechat_article.html`（convert 后的版本），不是 `wechat_article_raw.html`。raw 是给浏览器看的，微信专用版才能粘贴不塌。
-
-### Step 4: 默认弹出浏览器预览（让老板看着放心再粘贴）
-
-**默认走，不要省。** 学员看到自己的文章在浏览器里渲染出来，确认排版没塌，再去公众号后台 Ctrl+V，体感最稳。
-
-```bash
-python3 scripts/open_preview.py "$PREVIEW_DIR/wechat_article_raw.html"
-```
-
-`open_preview.py` 会自动检测同目录下的 `wechat_article.html`（微信专用版）：
-- **检测到** → 生成增强版 `wechat_article_preview.html`，**右上角浮动「📋 一键复制到公众号」按钮**，学员点一下就把微信版 HTML 写进系统剪贴板，弹 toast 提示
-- **没检测到** → 退化为纯预览（无按钮）
-
-所以正常流程下学员看到的预览页右上角**一定有那个红橙色按钮**。即使前面 `copy_html_to_clipboard.py` 已经塞过剪贴板，学员中途打开过别的东西覆盖了剪贴板，也可以**直接在预览页点按钮重灌**，不用回终端重跑命令。
-
-**注意**：预览打开的是 raw 版（浏览器能正常渲染），**不是**剪贴板里那版（微信专用格式浏览器显示会乱，但粘到公众号后台是对的）。按钮复制的才是微信版。
-
-**告诉老板预览文件在哪**——万一浏览器没自动起来，他可以自己 `open` 这个路径：
+### Step 4: 告诉学员怎么发（LLM 输出给学员看的话术）
 
 ```
-📂 HTML 预览文件:
-   $PREVIEW_DIR/wechat_article_preview.html  ← 增强版（带按钮）
-   $PREVIEW_DIR/wechat_article_raw.html      ← 原 raw 版（兜底）
-   （浏览器没自动打开就手动双击 preview 那个）
-```
-
-### Step 5: 告诉老板怎么发
-
-```
-✅ 文章已生成 + HTML 已自动塞进剪贴板（text/html 富文本格式）
+✅ 文章写好了！浏览器应该已经弹出来一个预览页。
 
 📋 下一步（一粘即发）：
-1. 打开 mp.weixin.qq.com → 新建图文消息
-2. 在编辑区直接 Ctrl+V（Mac: Cmd+V）← 排版会完整粘进去
-3. 标题填《{刚才选的标题}》
-4. 摘要填：{自动生成的摘要}
-5. （可选）上传封面图 → 点"保存为草稿"或"发布"
+1. 看一眼浏览器预览页排版，没问题就走下一步
+2. 打开 mp.weixin.qq.com → 新建图文消息
+3. 在编辑区直接 Ctrl+V（Mac: Cmd+V）← 排版会完整粘进去
+4. 标题填《{刚才选的标题}》
+5. 摘要填：{自动生成的摘要}
+6. (可选) 上传封面图 → 点"保存为草稿"或"发布"
 
 ⚠️ 注意：
 - 不要点"粘贴为纯文本"，选默认粘贴就行
-- 如果剪贴板被其他东西覆盖了，重跑：
-  python3 scripts/copy_html_to_clipboard.py "$PREVIEW_DIR/wechat_article.html"
+- 万一粘贴上去是空的或者排版乱了，回到浏览器预览页右上角点【📋 一键复制到公众号】按钮，再去公众号后台 Ctrl+V 一次
 ```
+
+**严禁告诉学员任何 python 命令、文件路径、终端操作**——他们是实体老板，看到 `python3 scripts/xxx.py` 这种文字会直接劝退。
+
+### 故障兜底（如果 run_pipeline.py 跑挂了）
+
+如果你（LLM）跑 `run_pipeline.py` 失败了，**自己 debug，不要丢锅给学员**：
+
+1. 先 `python3 scripts/convert_to_wechat_markup.py` 单独跑，看是否生成 `wechat_article.html`
+2. 再 `python3 scripts/copy_html_to_clipboard.py wechat_article.html` 单独跑
+3. 最后 `python3 scripts/open_preview.py wechat_article_raw.html` 单独跑
+4. 实在不行，把生成的 `wechat_article_preview.html` **绝对路径**直接告诉学员"双击这个文件打开"——但**不要让学员敲命令**
 
 ---
 
@@ -519,7 +493,8 @@ EOF
 4. **严禁** 在文章里编造老板没有的数据、案例、人物、经历
 5. **严禁** 写完不做六原则 + 六维评分 + 一票否决的三层自检
 6. **严禁** 字数超过 2000（超过就砍，不给特殊情况加字数）
-7. **严禁** 把 `/tmp/` 写死在脚本或指令里（Windows 学员跑不了）
+7. **严禁** 把 `/tmp/` 写死在脚本或指令里，或用 bash 语法 `${TMPDIR:-/tmp}` 算路径（Windows PowerShell/cmd 不认 → 路径错位 → 一键复制按钮不显示）。**统一用 Python 的 `tempfile.gettempdir()`**
 8. **严禁** 在 HTML 中写注释、`::before/after`、外部图床、CSS 动画
 9. **严禁** 调用任何公众号推送 API（本 skill 已下线自动推送，统一走 HTML 预览 + 一键复制 + 学员手动 Ctrl+V）
 10. **严禁** 选项用 ABC（用数字 1 / 2 / 3）
+11. **严禁** 把任何 `python3 / pip / shell` 命令、文件绝对路径、终端操作丢给学员手敲——学员是实体老板，看到命令文字会直接劝退。所有命令都是 LLM（你）替学员跑的，学员全程**只看浏览器预览页**。命令跑挂了你（LLM）自己 debug，**绝对不要让学员碰终端**
