@@ -24,10 +24,73 @@
 """
 
 import http.server
+import json
 import os
 import socketserver
+import subprocess
 import sys
 import threading
+
+
+def _wechat_markers(html):
+    low = html.lower()
+    return {
+        "section": low.count("<section"),
+        "span_leaf": low.count(" leaf="),
+        "mp_style_type": low.count("<mp-style-type"),
+    }
+
+
+def _copy_wechat_html(directory):
+    """把当前预览目录里的 wechat_article.html 写进系统剪贴板。"""
+    html_path = os.path.join(directory, "wechat_article.html")
+    if not os.path.exists(html_path):
+        return 404, {
+            "ok": False,
+            "error": "找不到微信排版文件，请重新生成文章。",
+        }
+
+    with open(html_path, "r", encoding="utf-8") as f:
+        html = f.read()
+    markers = _wechat_markers(html)
+    size_kb = os.path.getsize(html_path) / 1024
+
+    # 测试用：不真实改系统剪贴板，只验证 endpoint 能读到完整微信 HTML。
+    if os.environ.get("NRG_COPY_DRY_RUN") == "1":
+        return 200, {
+            "ok": True,
+            "dry_run": True,
+            "size_kb": round(size_kb, 1),
+            "markers": markers,
+        }
+
+    copy_script = os.path.join(os.path.dirname(os.path.abspath(__file__)), "copy_html_to_clipboard.py")
+    if not os.path.exists(copy_script):
+        return 500, {
+            "ok": False,
+            "error": "复制工具缺失，请重新安装这套工具。",
+        }
+
+    r = subprocess.run(
+        [sys.executable, copy_script, html_path],
+        capture_output=True,
+        text=True,
+        encoding="utf-8",
+        errors="replace",
+    )
+    if r.returncode != 0:
+        detail = (r.stderr or r.stdout or "").strip()
+        return 500, {
+            "ok": False,
+            "error": (detail[:240] if detail else "系统剪贴板写入失败，请重新生成一次。"),
+            "markers": markers,
+        }
+
+    return 200, {
+        "ok": True,
+        "size_kb": round(size_kb, 1),
+        "markers": markers,
+    }
 
 
 def main():
@@ -46,12 +109,44 @@ def main():
     class QuietHandler(http.server.SimpleHTTPRequestHandler):
         """SimpleHTTPRequestHandler 子类：静默日志 + 锁定 directory。"""
 
+        extensions_map = {
+            **http.server.SimpleHTTPRequestHandler.extensions_map,
+            ".html": "text/html; charset=utf-8",
+            ".htm": "text/html; charset=utf-8",
+        }
+
         def __init__(self, *args, **kwargs):
             super().__init__(*args, directory=directory, **kwargs)
 
         def log_message(self, fmt, *args):
             # 静默——不要污染 stderr/stdout（detach 进程的日志没人看）
             pass
+
+        def _send_json(self, status, payload):
+            body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+            self.send_response(status)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+
+        def do_POST(self):
+            # 读掉请求体，避免 keep-alive 管道里残留。
+            try:
+                length = int(self.headers.get("Content-Length") or "0")
+            except ValueError:
+                length = 0
+            if length:
+                self.rfile.read(length)
+
+            path = self.path.split("?", 1)[0]
+            if path != "/__copy_wechat":
+                self._send_json(404, {"ok": False, "error": "not found"})
+                return
+
+            status, payload = _copy_wechat_html(directory)
+            self._send_json(status, payload)
 
     # ThreadingTCPServer 让多浏览器请求并发不阻塞
     class ReusableThreadingTCPServer(socketserver.ThreadingTCPServer):

@@ -10,6 +10,7 @@
     1. 把 raw HTML 转成微信专用标记（section / span leaf / mp-style-type）
     2. 把微信版 HTML 以 text/html MIME 塞进系统剪贴板
     3. 生成带「📋 一键复制到公众号」按钮的增强预览页并弹出浏览器
+       按钮也调用本机系统剪贴板，不走浏览器复制
 
 为什么需要这个脚本:
     SKILL.md 里原本的 bash 命令（${TMPDIR:-/tmp}/preview）在 Windows
@@ -123,9 +124,9 @@ def main():
     print("\n" + "=" * 60)
     print("✅ 全部完成！")
     print("\n📋 下一步（一粘即发）：")
-    print("   1. 浏览器预览页右上角点「📋 一键复制到公众号」（或剪贴板已自动塞好）")
-    print("   2. 打开 mp.weixin.qq.com → 新建图文消息")
-    print("   3. 编辑器里直接 Ctrl+V（Mac: Cmd+V）")
+    print("   1. 打开 mp.weixin.qq.com → 新建图文消息")
+    print("   2. 编辑器里直接 Ctrl+V（Mac: Cmd+V）")
+    print("   3. 如果剪贴板被别的内容覆盖，再回预览页点右上角「📋 一键复制到公众号」")
     print("   4. 起标题 → 点「保存为草稿」或「发布」")
     print("=" * 60)
 

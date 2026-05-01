@@ -26,6 +26,7 @@ KEY_SCRIPTS = [
     "convert_to_wechat_markup.py",
     "copy_html_to_clipboard.py",
     "open_preview.py",
+    "_temp_http_server.py",
     "convert_to_inline_css.py",
     "render_signature.py",
     "migrate_legacy_config.py",

@@ -379,20 +379,20 @@ if result.returncode != 0:
 `run_pipeline.py` 内部按顺序跑三步，**Windows / macOS / Linux 全兼容**：
 
 1. **转微信标记**：raw HTML → `wechat_article.html`（含 `<section>` / `<span leaf="">` / `<mp-style-type>`）
-2. **塞剪贴板**（兜底）：把微信版以 `text/html` MIME 写进系统剪贴板（macOS osascript / Windows PowerShell .NET / Linux xclip）。**Windows 端用 `[System.IO.File]::ReadAllText` + UTF-8 显式编码读取**，规避中文乱码
-3. **弹增强预览页**：浏览器自动打开 `wechat_article_preview.html`，**右上角浮动「📋 一键复制到公众号」红橙按钮**
+2. **塞剪贴板**（兜底）：把微信版以 `text/html` MIME 写进系统剪贴板（macOS osascript / Windows PowerShell .NET / Linux xclip）。**Windows 端显式生成 CF_HTML 格式头 + UTF-8 读取**，规避中文乱码和裸 HTML 被当纯文本
+3. **弹增强预览页**：浏览器自动打开 `wechat_article_preview.html`，**右上角浮动「📋 一键复制到公众号」红橙按钮**。按钮调用本机预览服务的系统剪贴板接口，仍然写 `text/html`，不走浏览器复制。
 
 ### Step 2: 学员看到的最终结果
 
 学员的浏览器自动弹一个文章预览页，**右上角一定有红橙色按钮**。两条粘贴姿势：
 
 - **路 A（推荐）**：直接切公众号后台 → Ctrl+V（Mac: Cmd+V）→ 一粘到位
-- **路 B（剪贴板被覆盖时兜底）**：在预览页点右上角按钮 → 看到 toast「✅ 已复制」或「✅ 已复制（兼容模式）」→ 切公众号后台 Ctrl+V
+- **路 B（剪贴板被覆盖时兜底）**：在预览页点右上角按钮 → 看到 toast「✅ 已复制」→ 切公众号后台 Ctrl+V
 
-按钮 JS 三段式回退（应付任何浏览器/协议组合）：
-1. `ClipboardItem` API（现代 Chrome / Edge / Safari，安全上下文 + user gesture）
-2. `execCommand('copy')` + 隐藏 `contenteditable`（Windows file:// 协议下被拒绝 ClipboardItem 时兜底，墨滴 / Markdown Nice 长期姿势）
-3. `writeText` 纯源码（最后兜底，几乎不会到）
+按钮复制铁律：
+- **只走本机系统剪贴板接口**：`POST /__copy_wechat` → Python 调 `copy_html_to_clipboard.py` → 系统剪贴板 `text/html`
+- **Windows 必须写 CF_HTML**：不要只把裸 HTML 字符串塞给 PowerShell；需要 `StartHTML / StartFragment / EndFragment` 偏移头，否则部分目标程序会按纯文本粘贴。
+- **禁止浏览器兜底复制**：不要用 `ClipboardItem` / `execCommand` / `writeText` 去覆盖剪贴板。Windows 上这些路径可能把 `<mp-style-type>` 等微信专用标签清洗掉，表面提示复制成功，实际粘到公众号只剩文字。
 
 学员**全程只看浏览器**，不需要看终端、不需要敲任何命令。
 
@@ -405,9 +405,10 @@ if result.returncode != 0:
 1. 看一眼浏览器预览页排版，没问题就走下一步
 2. 打开 mp.weixin.qq.com → 新建图文消息
 3. 在编辑区直接 Ctrl+V（Mac: Cmd+V）← 排版会完整粘进去
-4. 标题填《{刚才选的标题}》
-5. 摘要填：{自动生成的摘要}
-6. (可选) 上传封面图 → 点"保存为草稿"或"发布"
+4. 如果剪贴板被别的内容覆盖了，回到预览页右上角点【📋 一键复制到公众号】，再来粘贴
+5. 标题填《{刚才选的标题}》
+6. 摘要填：{自动生成的摘要}
+7. (可选) 上传封面图 → 点"保存为草稿"或"发布"
 
 ⚠️ 注意：
 - 不要点"粘贴为纯文本"，选默认粘贴就行

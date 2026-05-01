@@ -1,7 +1,7 @@
 {
   "name": "公众号文章-学员版",
-  "version": "1.7.0",
-  "description": "从本地内容库读取老板画像和素材，帮老板写 1800-2000 字公众号文章并生成 HTML 排版。首次零配置，阶段式渐进升级。浏览器预览页带「一键复制到公众号」按钮，Cmd+V 直接粘到公众号后台。",
+  "version": "1.8.0",
+  "description": "从本地内容库读取老板画像和素材，帮老板写 1800-2000 字公众号文章并生成 HTML 排版。首次零配置，阶段式渐进升级。浏览器预览页带「一键复制到公众号」按钮，按钮走本机系统剪贴板，Ctrl+V 直接粘到公众号后台。",
   "author": "aiqinghuage01-dev",
   "platforms": ["workbuddy", "qclaw", "openclaw", "codex", "claude-code"],
   "requirements": {

@@ -49,67 +49,41 @@ COPY_BUTTON_SNIPPET = """
     setTimeout(function() { toast.style.display = 'none'; }, 3500);
   }
 
-  // 兜底姿势：用 contenteditable + execCommand('copy') 写富文本剪贴板
-  // 这是墨滴 / Markdown Nice 长期使用的姿势，兼容 IE10+ / Edge / Chrome / Firefox
-  // 关键：浏览器从渲染好的 DOM 选区复制时，会自动把样式写成 text/html MIME
-  function copyViaExecCommand(html) {
-    const div = document.createElement('div');
-    div.contentEditable = 'true';
-    div.innerHTML = html;
-    // 关键：必须可见可选中，但移到屏幕外。display:none 会让选区失效
-    div.style.position = 'fixed';
-    div.style.left = '-9999px';
-    div.style.top = '0';
-    div.style.opacity = '0';
-    document.body.appendChild(div);
-
-    const range = document.createRange();
-    range.selectNodeContents(div);
-    const selection = window.getSelection();
-    selection.removeAllRanges();
-    selection.addRange(range);
-
-    let ok = false;
-    try {
-      ok = document.execCommand('copy');
-    } catch (e) {
-      ok = false;
+  async function copyViaLocalServer() {
+    if (!/^https?:\\/\\/(127\\.0\\.0\\.1|localhost):\\d+$/i.test(window.location.origin)) {
+      throw new Error('当前不是本机预览服务');
     }
-    selection.removeAllRanges();
-    document.body.removeChild(div);
-    return ok;
+    const resp = await fetch('/__copy_wechat', {
+      method: 'POST',
+      headers: { 'Accept': 'application/json' },
+      cache: 'no-store'
+    });
+    let data = null;
+    try {
+      data = await resp.json();
+    } catch (e) {
+      data = null;
+    }
+    if (!resp.ok || !data || !data.ok) {
+      throw new Error((data && data.error) || ('复制失败 HTTP ' + resp.status));
+    }
+    return data;
   }
 
   document.getElementById('__copy_btn').addEventListener('click', async function() {
     const html = b64ToUtf8(__WECHAT_HTML_B64);
 
-    // 优先姿势 1：ClipboardItem API（现代浏览器，安全上下文 + user gesture）
+    // v1.8：按钮也走系统剪贴板，不再走浏览器 ClipboardItem / execCommand。
+    // Windows 上浏览器复制会清洗微信专用标签，导致粘到公众号只剩文字。
     try {
-      const blob = new Blob([html], { type: 'text/html' });
-      const item = new ClipboardItem({ 'text/html': blob });
-      await navigator.clipboard.write([item]);
-      showToast('✅ 已复制！去公众号后台 Cmd+V 粘贴', true);
+      const result = await copyViaLocalServer();
+      const hotkey = /Mac|iPhone|iPad|iPod/i.test(navigator.platform || '') ? 'Cmd+V' : 'Ctrl+V';
+      const markerOk = result.markers && result.markers.mp_style_type > 0 && result.markers.section > 0;
+      showToast(markerOk ? ('✅ 已复制！去公众号后台 ' + hotkey + ' 粘贴') : ('✅ 已复制，请去公众号后台 ' + hotkey + ' 粘贴'), true);
       return;
     } catch (e) {
-      // 落到姿势 2
-    }
-
-    // 兜底姿势 2：execCommand('copy') + contenteditable（富文本，Win file:// 通吃）
-    try {
-      if (copyViaExecCommand(html)) {
-        showToast('✅ 已复制（兼容模式）！去公众号后台 Cmd+V 粘贴', true);
-        return;
-      }
-    } catch (e) {
-      // 落到姿势 3
-    }
-
-    // 最终兜底姿势 3：writeText 纯源码（基本不会到这一步）
-    try {
-      await navigator.clipboard.writeText(html);
-      showToast('⚠️ 仅复制了 HTML 源码（浏览器限制富文本写入）。建议改用 Chrome 或 Edge 重试', false);
-    } catch (e3) {
-      showToast('❌ 复制失败：' + e3.message, false);
+      // 不能再用浏览器兜底：它会把微信专用排版清洗掉，成功也是假成功。
+      showToast('❌ 按钮复制没成功。生成时已自动复制过，请先去公众号后台直接粘贴；如果排版不对，重新生成一次。', false);
     }
   });
 })();
@@ -129,12 +103,14 @@ def build_enhanced_preview(raw_html: str, wechat_html: str) -> str:
 def open_in_browser(file_path: str) -> None:
     """在默认浏览器中打开本地 HTML 文件。
 
-    v1.7 关键升级：尝试启动一个 detach HTTP server 在 127.0.0.1:port 上
+    v1.8 关键升级：尝试启动一个 detach HTTP server 在 127.0.0.1:port 上
     serve 预览文件，浏览器打开 http://127.0.0.1/ URL 而不是 file://。
-    原因：file:// 协议下浏览器拒绝 navigator.clipboard.write()，按钮兜底
-    走 execCommand 时浏览器会 strip <mp-style-type> 等微信专用标签，
-    粘到公众号后台格式塌。localhost 是 secure context，ClipboardItem
-    永远能用，剪贴板里就是原始字符串、所有标签完整保留。
+    按钮点击时 POST /__copy_wechat，让本机 Python 直接把 wechat_article.html
+    以 text/html 写进系统剪贴板。
+
+    原因：Windows 上浏览器 ClipboardItem / execCommand 都可能清洗 HTML，
+    把 <mp-style-type> 等微信专用标签吃掉。只要经过浏览器复制，成功也可能
+    是假成功；系统剪贴板路径才是事实源。
 
     HTTP server 起不来时（端口、防火墙）回退到 file://。
     """
@@ -169,12 +145,12 @@ def open_in_browser(file_path: str) -> None:
     system = platform.system()
     try:
         if server_url:
-            # 走 HTTP（secure context）— ClipboardItem 永远能用
+            # 走 HTTP — 按钮调用本地系统剪贴板端点
             _open_url(server_url, system)
             print(f"✅ 已在浏览器打开 [HTTP localhost 模式]: {server_url}")
-            print(f"   按钮一键复制走 ClipboardItem，剪贴板里是完整微信格式")
+            print(f"   按钮一键复制走本机系统剪贴板，剪贴板里是完整微信格式")
         else:
-            # 兜底走 file://（按钮可能落到 execCommand，质量打折）
+            # 兜底走 file://（按钮不再做浏览器复制，避免覆盖成坏剪贴板）
             if system == "Darwin":
                 subprocess.run(["open", target_path], check=True)
             elif system == "Windows":
@@ -182,7 +158,7 @@ def open_in_browser(file_path: str) -> None:
             else:
                 subprocess.run(["xdg-open", target_path], check=True)
             print(f"⚠️  HTTP server 起不来，回退到 file:// 协议: {target_path}")
-            print(f"   按钮可能落到 execCommand 兜底，mp-style-type 会被序列化吃掉")
+            print(f"   为避免浏览器清洗排版，按钮不会再走浏览器复制；请直接粘贴已自动写入的剪贴板")
     except Exception as e:
         print(f"❌ 打开失败: {e}", file=sys.stderr)
         print(f"   你可以手动把这个路径复制到浏览器地址栏：\n   file://{target_path}")
