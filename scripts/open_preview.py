@@ -127,7 +127,17 @@ def build_enhanced_preview(raw_html: str, wechat_html: str) -> str:
 
 
 def open_in_browser(file_path: str) -> None:
-    """在默认浏览器中打开本地 HTML 文件。"""
+    """在默认浏览器中打开本地 HTML 文件。
+
+    v1.7 关键升级：尝试启动一个 detach HTTP server 在 127.0.0.1:port 上
+    serve 预览文件，浏览器打开 http://127.0.0.1/ URL 而不是 file://。
+    原因：file:// 协议下浏览器拒绝 navigator.clipboard.write()，按钮兜底
+    走 execCommand 时浏览器会 strip <mp-style-type> 等微信专用标签，
+    粘到公众号后台格式塌。localhost 是 secure context，ClipboardItem
+    永远能用，剪贴板里就是原始字符串、所有标签完整保留。
+
+    HTTP server 起不来时（端口、防火墙）回退到 file://。
+    """
     if not os.path.exists(file_path):
         print(f"❌ 文件不存在: {file_path}", file=sys.stderr)
         sys.exit(1)
@@ -137,6 +147,7 @@ def open_in_browser(file_path: str) -> None:
     wechat_path = os.path.join(raw_dir, "wechat_article.html")
 
     target_path = abs_raw
+    target_filename = os.path.basename(abs_raw)
     enhanced = False
 
     if os.path.exists(wechat_path):
@@ -149,25 +160,105 @@ def open_in_browser(file_path: str) -> None:
         with open(enhanced_path, "w", encoding="utf-8") as f:
             f.write(merged)
         target_path = enhanced_path
+        target_filename = os.path.basename(enhanced_path)
         enhanced = True
+
+    # 尝试启动 detach HTTP server，浏览器开 http://127.0.0.1/...
+    server_url = _start_detached_http_server(raw_dir, target_filename)
 
     system = platform.system()
     try:
-        if system == "Darwin":
-            subprocess.run(["open", target_path], check=True)
-        elif system == "Windows":
-            os.startfile(target_path)  # noqa: type: ignore
+        if server_url:
+            # 走 HTTP（secure context）— ClipboardItem 永远能用
+            _open_url(server_url, system)
+            print(f"✅ 已在浏览器打开 [HTTP localhost 模式]: {server_url}")
+            print(f"   按钮一键复制走 ClipboardItem，剪贴板里是完整微信格式")
         else:
-            subprocess.run(["xdg-open", target_path], check=True)
-        if enhanced:
-            print(f"✅ 已在浏览器打开（含一键复制按钮）: {target_path}")
-        else:
-            print(f"✅ 已在浏览器打开（纯预览，无按钮）: {target_path}")
-            print(f"   提示：同目录放一份 wechat_article.html 即可启用一键复制按钮。")
+            # 兜底走 file://（按钮可能落到 execCommand，质量打折）
+            if system == "Darwin":
+                subprocess.run(["open", target_path], check=True)
+            elif system == "Windows":
+                os.startfile(target_path)  # noqa: type: ignore
+            else:
+                subprocess.run(["xdg-open", target_path], check=True)
+            print(f"⚠️  HTTP server 起不来，回退到 file:// 协议: {target_path}")
+            print(f"   按钮可能落到 execCommand 兜底，mp-style-type 会被序列化吃掉")
     except Exception as e:
         print(f"❌ 打开失败: {e}", file=sys.stderr)
         print(f"   你可以手动把这个路径复制到浏览器地址栏：\n   file://{target_path}")
         sys.exit(1)
+
+
+def _open_url(url: str, system: str) -> None:
+    """跨平台打开 URL（不是文件路径）"""
+    if system == "Darwin":
+        subprocess.run(["open", url], check=True)
+    elif system == "Windows":
+        # os.startfile 也能开 URL，但 webbrowser 更稳
+        import webbrowser
+        webbrowser.open(url)
+    else:
+        subprocess.run(["xdg-open", url], check=True)
+
+
+def _find_free_port() -> int:
+    """找一个可用的本地端口（让 OS 分配）"""
+    import socket
+    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    s.bind(("127.0.0.1", 0))
+    port = s.getsockname()[1]
+    s.close()
+    return port
+
+
+def _start_detached_http_server(directory: str, filename: str, timeout_sec: int = 1800):
+    """启动 detach 的 HTTP server 子进程，返回 http://127.0.0.1:port/filename URL。
+    失败返回 None（调用方回退到 file://）。"""
+    import socket
+    import time
+
+    try:
+        port = _find_free_port()
+    except OSError:
+        return None
+
+    scripts_dir = os.path.dirname(os.path.abspath(__file__))
+    server_script = os.path.join(scripts_dir, "_temp_http_server.py")
+    if not os.path.exists(server_script):
+        return None
+
+    # detach 子进程（关键：跨平台姿势不同）
+    popen_kwargs = {
+        "stdout": subprocess.DEVNULL,
+        "stderr": subprocess.DEVNULL,
+        "stdin": subprocess.DEVNULL,
+    }
+    if platform.system() == "Windows":
+        # DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+        DETACHED_PROCESS = 0x00000008
+        CREATE_NEW_PROCESS_GROUP = 0x00000200
+        popen_kwargs["creationflags"] = DETACHED_PROCESS | CREATE_NEW_PROCESS_GROUP
+    else:
+        popen_kwargs["start_new_session"] = True
+
+    try:
+        subprocess.Popen(
+            [sys.executable, server_script, str(port), directory, str(timeout_sec)],
+            **popen_kwargs,
+        )
+    except Exception:
+        return None
+
+    # 等 server 起来（最多等 3 秒）
+    for _ in range(30):
+        try:
+            sock = socket.create_connection(("127.0.0.1", port), timeout=0.1)
+            sock.close()
+            return f"http://127.0.0.1:{port}/{filename}"
+        except (ConnectionRefusedError, OSError):
+            time.sleep(0.1)
+
+    return None
 
 
 def main() -> None:
